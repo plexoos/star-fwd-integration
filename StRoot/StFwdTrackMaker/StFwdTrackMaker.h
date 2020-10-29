@@ -5,8 +5,9 @@
 
 #ifndef __CINT__
 #include "GenFit/Track.h"
-#include "StFwdTrackMaker/XmlConfig/XmlConfig.h"
 #endif
+
+#include "FwdTrackerConfig.h"
 
 namespace KiTrack {
 class IHit;
@@ -55,35 +56,38 @@ class StFwdTrackMaker : public StMaker {
     void SetConfigFile(std::string n) {
         mConfigFile = n;
     }
-    void GenerateTree(bool _genTree) { mGenTree = _genTree; }
+    void SetGenerateHistograms( bool _genHisto ){ mGenHistograms = _genHisto; }
+    void SetGenerateTree(bool _genTree) { mGenTree = _genTree; }
 
   private:
   protected:
-    ForwardTracker *mForwardTracker;
-    ForwardHitLoader *mForwardHitLoader;
-    StarFieldAdaptor *mFieldAdaptor;
 
-    SiRasterizer *mSiRasterizer;
-
+    // Track Seed typdef 
     typedef std::vector<KiTrack::IHit *> Seed_t;
 
-    std::map<std::string, TH1 *> histograms;
-    TFile *mlFile;
-    TTree *mlTree;
-    bool mGenTree;
+    
+
+    bool mGenHistograms = false;
+    std::map<std::string, TH1 *> mHistograms;
+    TFile *mTreeFile = 0;
+    TTree *mTree = 0;
+    bool mGenTree = false;
     std::string mConfigFile;
 
-    float mlt_x[MAX_TREE_ELEMENTS], mlt_y[MAX_TREE_ELEMENTS], mlt_z[MAX_TREE_ELEMENTS];
-    int mlt_n, mlt_nt, mlt_tid[MAX_TREE_ELEMENTS], mlt_vid[MAX_TREE_ELEMENTS], mlt_hpt[MAX_TREE_ELEMENTS], mlt_hsv[MAX_TREE_ELEMENTS];
-    float mlt_pt[MAX_TREE_ELEMENTS], mlt_eta[MAX_TREE_ELEMENTS], mlt_phi[MAX_TREE_ELEMENTS];
-    std::map<string, std::vector<float>> mlt_crits;
-    std::map<string, std::vector<int>> mlt_crit_track_ids;
+    // elements used only if the mGenTree = true
+    float mTreeX[MAX_TREE_ELEMENTS], mTreeY[MAX_TREE_ELEMENTS], mTreeZ[MAX_TREE_ELEMENTS];
+    int mTreeN, mTreeNTracks, mTreeTID[MAX_TREE_ELEMENTS], mTreeVID[MAX_TREE_ELEMENTS], mTreeHPt[MAX_TREE_ELEMENTS], mTreeHSV[MAX_TREE_ELEMENTS];
+    float mTreePt[MAX_TREE_ELEMENTS], mTreeEta[MAX_TREE_ELEMENTS], mTreePhi[MAX_TREE_ELEMENTS];
+    std::map<string, std::vector<float>> mTreeCrits;
+    std::map<string, std::vector<int>> mTreeCritTrackIds;
 
     // I could not get the library generation to succeed with these.
     // so I have removed them
     #ifndef __CINT__
-        jdb::XmlConfig xfg;
-
+        std::shared_ptr<SiRasterizer> mSiRasterizer;
+        FwdTrackerConfig mFwdConfig;
+        std::shared_ptr<ForwardTracker> mForwardTracker;
+        std::shared_ptr<ForwardHitLoader> mForwardHitLoader;
         void loadMcTracks( std::map<int, std::shared_ptr<McTrack>> &mcTrackMap );
         void loadStgcHits( std::map<int, std::shared_ptr<McTrack>> &mcTrackMap, std::map<int, std::vector<KiTrack::IHit *>> &hitMap, int count = 0 );
         void loadStgcHitsFromGEANT( std::map<int, std::shared_ptr<McTrack>> &mcTrackMap, std::map<int, std::vector<KiTrack::IHit *>> &hitMap, int count = 0 );
@@ -96,13 +100,13 @@ class StFwdTrackMaker : public StMaker {
 
     // Fill StEvent
     void FillEvent();
-    void FillDetectorInfo(StTrackDetectorInfo *info, genfit::Track *track, bool increment);
-    void FillTrack(StTrack *otrack, genfit::Track *itrack, const Seed_t &iseed, StTrackDetectorInfo *info);
-    void FillTrackFlags(StTrack *otrack, genfit::Track *itrack);
-    void FillTrackGeometry(StTrack *otrack, genfit::Track *itrack, double zplane, int io);
-    void FillTrackDcaGeometry ( StGlobalTrack    *otrack, genfit::Track *itrack );
-    void FillTrackFitTraits(StTrack *otrack, genfit::Track *itrack);
-    void FillTrackMatches(StTrack *otrack, genfit::Track *itrack);
+    void FillDetectorInfo(StTrackDetectorInfo *info, const genfit::Track *track, bool increment);
+    void FillTrack(StTrack *otrack, const genfit::Track *itrack, const Seed_t &iseed, StTrackDetectorInfo *info);
+    void FillTrackFlags(StTrack *otrack, const genfit::Track *itrack);
+    void FillTrackGeometry(StTrack *otrack, const genfit::Track *itrack, double zplane, int io);
+    void FillTrackDcaGeometry ( StGlobalTrack    *otrack, const genfit::Track *itrack );
+    void FillTrackFitTraits(StTrack *otrack, const genfit::Track *itrack);
+    void FillTrackMatches(StTrack *otrack, const genfit::Track *itrack);
 };
 
 #endif

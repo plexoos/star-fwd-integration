@@ -7,18 +7,19 @@
 #include "TH1.h"
 #include "TH1F.h"
 #include "TH2F.h"
+#include "TH3F.h"
 #include "TVector3.h"
 
 #include "GenFit/FitStatus.h"
 
-#include "StFwdTrackMaker/XmlConfig/HistoBins.h"
-#include "StFwdTrackMaker/XmlConfig/XmlConfig.h"
+#include "StFwdTrackMaker/FwdTrackerConfig.h"
+#include "StFwdTrackMaker/Common.h"
 #include "StFwdTrackMaker/include/Tracker/FwdHit.h"
-#include "StFwdTrackMaker/include/Tracker/loguru.h"
+
 
 class QualityPlotter {
   public:
-    QualityPlotter(jdb::XmlConfig &_cfg) : cfg(_cfg) {
+    QualityPlotter(FwdTrackerConfig &_cfg) : cfg(_cfg) {
     }
 
     void makeHistograms(size_t maxI) {
@@ -36,25 +37,13 @@ class QualityPlotter {
         hist["nHitsOnTrack"] = new TH1F("nHitsOnTrack", ";nHit", 10, 0, 10);
         hist["nHitsOnTrackMc"] = new TH1F("nHitsOnTrackMc", ";nHit", 10, 0, 10);
 
-        jdb::HistoBins hb_InvPtRes(-5, 5, 0.01); // default
-
-        if (cfg.exists("QualityPlotter.Bins.InvPtRes")) {
-            hb_InvPtRes.load(cfg, "QualityPlotter.Bins.InvPtRes");
-        }
-
-        jdb::HistoBins hb_InvPtRes2D(-2, 2, 0.01); // default
-
-        if (cfg.exists("QualityPlotter.Bins.InvPtRes2D")) {
-            hb_InvPtRes2D.load(cfg, "QualityPlotter.Bins.InvPtRes2D");
-        }
-
-        hist["InvPtRes"] = new TH1F("InvPtRes", ";(p_{T}^{MC} - p_{T}^{RC}) / p_{T}^{MC}", hb_InvPtRes.nBins(), hb_InvPtRes.bins.data());
-        hist["InvPtResVsNHits"] = new TH2F("InvPtResVsNHits", ";(p_{T}^{MC} - p_{T}^{RC}) / p_{T}^{MC}", 10, 0, 10, hb_InvPtRes.nBins(), hb_InvPtRes.bins.data());
-        hist["PtRes"] = new TH1F("PtRes", ";(p_{T}^{MC} - p_{T}^{RC}) / p_{T}^{MC}", hb_InvPtRes.nBins(), hb_InvPtRes.bins.data());
-        hist["PtResVsTrue"] = new TH2F("PtResVsTrue", ";q^{MC} #times p_{T}^{MC};(p_{T}^{MC} - p_{T}^{RC}) / p_{T}^{MC}", 100, -5, 5, hb_InvPtRes2D.nBins(), hb_InvPtRes2D.bins.data());
-        hist["InvPtResVsTrue"] = new TH2F("InvPtResVsTrue", ";q^{MC} #times p_{T}^{MC}; #sigma_{p_{T}^{-1}}", 100, -5, 5, hb_InvPtRes2D.nBins(), hb_InvPtRes2D.bins.data());
-        hist["DeltaPt"] = new TH1F("DeltaPt", ";p_{T}^{RC} - p_{T}^{MC} (GeV/c)", hb_InvPtRes.nBins(), hb_InvPtRes.bins.data());
-        hist["InvPtResVsEta"] = new TH2F("InvPtResVsEta", ";#eta^{MC}; #sigma_{p_{T}^{-1}}", 300, 2, 5, hb_InvPtRes2D.nBins(), hb_InvPtRes2D.bins.data());
+        hist["InvPtRes"] = new TH1F("InvPtRes", ";(p_{T}^{MC} - p_{T}^{RC}) / p_{T}^{MC}", 500, -5, 5);
+        hist["InvPtResVsNHits"] = new TH2F("InvPtResVsNHits", ";(p_{T}^{MC} - p_{T}^{RC}) / p_{T}^{MC}", 10, 0, 10, 500, -5, 5);
+        hist["PtRes"] = new TH1F("PtRes", ";(p_{T}^{MC} - p_{T}^{RC}) / p_{T}^{MC}", 500, -5, 5);
+        hist["PtResVsTrue"] = new TH2F("PtResVsTrue", ";q^{MC} #times p_{T}^{MC};(p_{T}^{MC} - p_{T}^{RC}) / p_{T}^{MC}", 100, -5, 5, 200, -2, 2);
+        hist["InvPtResVsTrue"] = new TH2F("InvPtResVsTrue", ";q^{MC} #times p_{T}^{MC}; #sigma_{p_{T}^{-1}}", 100, -5, 5, 200, -2, 2);
+        hist["DeltaPt"] = new TH1F("DeltaPt", ";p_{T}^{RC} - p_{T}^{MC} (GeV/c)", 500, -5, 5);
+        hist["InvPtResVsEta"] = new TH2F("InvPtResVsEta", ";#eta^{MC}; #sigma_{p_{T}^{-1}}", 300, 2, 5, 200, -2, 2);
 
         hist["RecoPtVsMcPt"] = new TH2F("RecoPtVsMcPt", "; p_{T}^{MC}; p_{T}^{RC}", 100, 0, 5, 100, 0, 5);
         hist["QMatrix"] = new TH2F("QMatrix", ";GEN;RECO", 6, -3, 3, 6, -3, 3);
@@ -166,34 +155,31 @@ class QualityPlotter {
     TH1 *get(std::string hn) {
         if (hist.count(hn) > 0)
             return hist[hn];
-
-        LOG_F(ERROR, "histogram name=%s does not exist, returning NULL", hn.c_str());
         return nullptr; //careful
     }
 
     void startIteration() {
         // start the timer
-        itStart = loguru::now_ns();
+        itStart = FwdTrackerUtils::nowNanoSecond();
     }
     void afterIteration(size_t iteration, std::vector<Seed_t> acceptedTracks) {
 
         size_t nTracks = acceptedTracks.size();
         nTracksAfterIteration.push_back(nTracks); // assume that we call the iterations in order
 
-        long long itEnd = loguru::now_ns();
+        long long itEnd = FwdTrackerUtils::nowNanoSecond();
         long long duration = (itEnd - itStart) * 1e-6; // milliseconds
         this->get("DurationIt" + to_string(iteration))->Fill(duration);
-        LOG_F(INFO, "Duration( It=%lu ) = %lld", iteration, duration);
     }
 
     void startEvent() {
-        eventStart = loguru::now_ns();
+        eventStart = FwdTrackerUtils::nowNanoSecond();
     }
     void summarizeEvent(std::vector<Seed_t> foundTracks, std::map<int, shared_ptr<McTrack>> &mcTrackMap, std::vector<TVector3> fitMoms, std::vector<genfit::FitStatus> fitStatus) {
-        LOG_SCOPE_FUNCTION(INFO);
+
         using namespace std;
 
-        long long duration = (loguru::now_ns() - eventStart) * 1e-6; // milliseconds
+        long long duration = (FwdTrackerUtils::nowNanoSecond() - eventStart) * 1e-6; // milliseconds
         this->get("DurationPerEvent")->Fill(duration);
 
         // make a map of the number of tracks found for each # of hits
@@ -207,10 +193,6 @@ class QualityPlotter {
             if (tracks_found_by_nHits.count(i) > 0)
                 this->get("nHitsOnTrack")->Fill(i, tracks_found_by_nHits[i]);
         }
-
-        // if ( tracks_found_by_nHits.size() > 1 ){
-        // 	LOG_F( INFO, "FOUND ACCEPTANCE" );
-        // }
 
         // the total number of tracks found (all nHits)
         size_t nTotal = foundTracks.size();
@@ -235,39 +217,39 @@ class QualityPlotter {
             if (kv.second == nullptr)
                 continue;
 
-            this->get("nHitsOnTrackMc")->Fill(kv.second->hits.size());
-            this->get("McPt")->Fill(kv.second->_pt);
-            this->get("McEta")->Fill(kv.second->_eta);
-            this->get("McPhi")->Fill(kv.second->_phi);
+            this->get("nHitsOnTrackMc")->Fill(kv.second->mHits.size());
+            this->get("McPt")->Fill(kv.second->mPt);
+            this->get("McEta")->Fill(kv.second->mEta);
+            this->get("McPhi")->Fill(kv.second->mPhi);
 
-            if (kv.second->hits.size() >= 4) {
-                this->get("McPt_4hits")->Fill(kv.second->_pt);
-                this->get("McEta_4hits")->Fill(kv.second->_eta);
-                this->get("McPhi_4hits")->Fill(kv.second->_phi);
+            if (kv.second->mHits.size() >= 4) {
+                this->get("McPt_4hits")->Fill(kv.second->mPt);
+                this->get("McEta_4hits")->Fill(kv.second->mEta);
+                this->get("McPhi_4hits")->Fill(kv.second->mPhi);
 
-                this->get("McPtPhi_4hits")->Fill(kv.second->_pt, kv.second->_phi);
-                ((TH3 *)this->get("McPtEtaPhi_4hits"))->Fill(kv.second->_pt, kv.second->_eta, kv.second->_phi);
+                this->get("McPtPhi_4hits")->Fill(kv.second->mPt, kv.second->mPhi);
+                ((TH3 *)this->get("McPtEtaPhi_4hits"))->Fill(kv.second->mPt, kv.second->mEta, kv.second->mPhi);
             }
 
-            if (kv.second->hits.size() >= 5) {
-                this->get("McPt_5hits")->Fill(kv.second->_pt);
-                this->get("McEta_5hits")->Fill(kv.second->_eta);
-                this->get("McPhi_5hits")->Fill(kv.second->_phi);
+            if (kv.second->mHits.size() >= 5) {
+                this->get("McPt_5hits")->Fill(kv.second->mPt);
+                this->get("McEta_5hits")->Fill(kv.second->mEta);
+                this->get("McPhi_5hits")->Fill(kv.second->mPhi);
             }
 
-            if (kv.second->hits.size() >= 6) {
-                this->get("McPt_6hits")->Fill(kv.second->_pt);
-                this->get("McEta_6hits")->Fill(kv.second->_eta);
-                this->get("McPhi_6hits")->Fill(kv.second->_phi);
+            if (kv.second->mHits.size() >= 6) {
+                this->get("McPt_6hits")->Fill(kv.second->mPt);
+                this->get("McEta_6hits")->Fill(kv.second->mEta);
+                this->get("McPhi_6hits")->Fill(kv.second->mPhi);
             }
 
-            if (kv.second->hits.size() >= 7) {
-                this->get("McPt_7hits")->Fill(kv.second->_pt);
-                this->get("McEta_7hits")->Fill(kv.second->_eta);
-                this->get("McPhi_7hits")->Fill(kv.second->_phi);
+            if (kv.second->mHits.size() >= 7) {
+                this->get("McPt_7hits")->Fill(kv.second->mPt);
+                this->get("McEta_7hits")->Fill(kv.second->mEta);
+                this->get("McPhi_7hits")->Fill(kv.second->mPhi);
             }
 
-            for (auto h : kv.second->hits) {
+            for (auto h : kv.second->mHits) {
                 auto fh = static_cast<FwdHit *>(h);
                 this->get("McHitMap")->Fill(abs(fh->_vid));
                 std::string n = "McHitMapLayer" + std::to_string(fh->getLayer());
@@ -281,15 +263,10 @@ class QualityPlotter {
 
         for (auto t : foundTracks) {
 
-            if (t.size() > 7) {
-                LOG_F(INFO, "too many hits!");
-            }
-
             map<int, float> qual_map;
 
             for (auto hit : t) {
                 qual_map[static_cast<FwdHit *>(hit)->_tid]++;
-                LOG_F(INFO, "_tid = %d", static_cast<FwdHit *>(hit)->_tid);
             }
 
             for (auto &kv : qual_map) {
@@ -312,19 +289,19 @@ class QualityPlotter {
             this->get("AllQuality")->Fill(quality);
 
             if (mctid > 0 && quality >= 3.0 / 4.0 - 0.001) {
-                this->get("McPtFoundAllQ")->Fill(mcTrackMap[mctid]->_pt);
-                this->get("McEtaFoundAllQ")->Fill(mcTrackMap[mctid]->_eta);
-                this->get("McPhiFoundAllQ")->Fill(mcTrackMap[mctid]->_phi);
+                this->get("McPtFoundAllQ")->Fill(mcTrackMap[mctid]->mPt);
+                this->get("McEtaFoundAllQ")->Fill(mcTrackMap[mctid]->mEta);
+                this->get("McPhiFoundAllQ")->Fill(mcTrackMap[mctid]->mPhi);
 
                 // for ( size_t min_track_len : { 4, 5, 6, 7 } )
                 {
                     size_t min_track_len = 4;
                     if (t.size() >= min_track_len) {
-                        this->get(TString::Format("McPtPhiFound%uAllQ", min_track_len).Data())->Fill(mcTrackMap[mctid]->_pt, mcTrackMap[mctid]->_phi);
-                        ((TH3 *)this->get(TString::Format("McPtEtaPhiFound%uAllQ", min_track_len).Data()))->Fill(mcTrackMap[mctid]->_pt, mcTrackMap[mctid]->_eta, mcTrackMap[mctid]->_phi);
-                        this->get(TString::Format("McPtFound%uAllQ", min_track_len).Data())->Fill(mcTrackMap[mctid]->_pt);
-                        this->get(TString::Format("McEtaFound%uAllQ", min_track_len).Data())->Fill(mcTrackMap[mctid]->_eta);
-                        this->get(TString::Format("McPhiFound%uAllQ", min_track_len).Data())->Fill(mcTrackMap[mctid]->_phi);
+                        this->get(TString::Format("McPtPhiFound%uAllQ", min_track_len).Data())->Fill(mcTrackMap[mctid]->mPt, mcTrackMap[mctid]->mPhi);
+                        ((TH3 *)this->get(TString::Format("McPtEtaPhiFound%uAllQ", min_track_len).Data()))->Fill(mcTrackMap[mctid]->mPt, mcTrackMap[mctid]->mEta, mcTrackMap[mctid]->mPhi);
+                        this->get(TString::Format("McPtFound%uAllQ", min_track_len).Data())->Fill(mcTrackMap[mctid]->mPt);
+                        this->get(TString::Format("McEtaFound%uAllQ", min_track_len).Data())->Fill(mcTrackMap[mctid]->mEta);
+                        this->get(TString::Format("McPhiFound%uAllQ", min_track_len).Data())->Fill(mcTrackMap[mctid]->mPhi);
                     }
                 }
 
@@ -336,23 +313,23 @@ class QualityPlotter {
                 {
                     size_t min_track_len = 4;
                     if (t.size() >= min_track_len) {
-                        this->get(TString::Format("McPtPhiFound%u", min_track_len).Data())->Fill(mcTrackMap[mctid]->_pt, mcTrackMap[mctid]->_phi);
-                        ((TH3 *)this->get(TString::Format("McPtEtaPhiFound%u", min_track_len).Data()))->Fill(mcTrackMap[mctid]->_pt, mcTrackMap[mctid]->_eta, mcTrackMap[mctid]->_phi);
-                        this->get(TString::Format("McPtFound%u", min_track_len).Data())->Fill(mcTrackMap[mctid]->_pt);
-                        this->get(TString::Format("McEtaFound%u", min_track_len).Data())->Fill(mcTrackMap[mctid]->_eta);
-                        this->get(TString::Format("McPhiFound%u", min_track_len).Data())->Fill(mcTrackMap[mctid]->_phi);
+                        this->get(TString::Format("McPtPhiFound%u", min_track_len).Data())->Fill(mcTrackMap[mctid]->mPt, mcTrackMap[mctid]->mPhi);
+                        ((TH3 *)this->get(TString::Format("McPtEtaPhiFound%u", min_track_len).Data()))->Fill(mcTrackMap[mctid]->mPt, mcTrackMap[mctid]->mEta, mcTrackMap[mctid]->mPhi);
+                        this->get(TString::Format("McPtFound%u", min_track_len).Data())->Fill(mcTrackMap[mctid]->mPt);
+                        this->get(TString::Format("McEtaFound%u", min_track_len).Data())->Fill(mcTrackMap[mctid]->mEta);
+                        this->get(TString::Format("McPhiFound%u", min_track_len).Data())->Fill(mcTrackMap[mctid]->mPhi);
                     }
                 }
 
-                this->get("McPtFound")->Fill(mcTrackMap[mctid]->_pt);
-                this->get("McPtPhiFound")->Fill(mcTrackMap[mctid]->_pt, mcTrackMap[mctid]->_phi);
-                ((TH3 *)this->get("McPtEtaPhiFound"))->Fill(mcTrackMap[mctid]->_pt, mcTrackMap[mctid]->_eta, mcTrackMap[mctid]->_phi);
-                this->get("McEtaFound")->Fill(mcTrackMap[mctid]->_eta);
-                this->get("McPhiFound")->Fill(mcTrackMap[mctid]->_phi);
+                this->get("McPtFound")->Fill(mcTrackMap[mctid]->mPt);
+                this->get("McPtPhiFound")->Fill(mcTrackMap[mctid]->mPt, mcTrackMap[mctid]->mPhi);
+                ((TH3 *)this->get("McPtEtaPhiFound"))->Fill(mcTrackMap[mctid]->mPt, mcTrackMap[mctid]->mEta, mcTrackMap[mctid]->mPhi);
+                this->get("McEtaFound")->Fill(mcTrackMap[mctid]->mEta);
+                this->get("McPhiFound")->Fill(mcTrackMap[mctid]->mPhi);
 
-                float mcpt = mcTrackMap[mctid]->_pt;
-                float mceta = mcTrackMap[mctid]->_eta;
-                int mcq = (int)mcTrackMap[mctid]->_q;
+                float mcpt = mcTrackMap[mctid]->mPt;
+                float mceta = mcTrackMap[mctid]->mEta;
+                int mcq = (int)mcTrackMap[mctid]->mQ;
                 float rcpt = 0;
 
                 int rcq = 0;
@@ -501,7 +478,7 @@ class QualityPlotter {
     }
 
   private:
-    jdb::XmlConfig &cfg;
+    FwdTrackerConfig &cfg;
     std::map<std::string, TH1 *> hist;
 
     vector<size_t> nTracksAfterIteration;

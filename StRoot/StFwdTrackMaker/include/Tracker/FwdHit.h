@@ -15,46 +15,55 @@ class StHit;
 
 class FwdSystem : public KiTrack::ISectorSystem {
   public:
-    FwdSystem(const int ndisks) : KiTrack::ISectorSystem(), _ndisks(ndisks){};
+    static const int sNFwdLayers = 7;
+    static const int sNFttLayers = 4;
+    static const int sNFstLayers = 3;
+    FwdSystem(const int ndisks = FwdSystem::sNFwdLayers) : KiTrack::ISectorSystem(), mNDisks(ndisks){};
     ~FwdSystem(){/* */};
     virtual unsigned int getLayer(int diskid) const throw(KiTrack::OutOfRange) {
         return diskid;
     }
 
-    int _ndisks;
-    std::string getInfoOnSector(int sec) const { return "TODO"; }
+    int mNDisks;
+    std::string getInfoOnSector(int sec) const { return "NOOP"; }
+    static FwdSystem *sInstance; // setup and torn down by StFwdTrackMaker
 };
-FwdSystem *gFwdSystem;
+
 //_____________________________________________________________________________________________
 
 // small class to store Mc Track information
 class McTrack {
   public:
     McTrack() {
-        _pt = -999;
-        _eta = -999;
-        _phi = -999;
-        _q = 0;
+        mPt = -999;
+        mEta = -999;
+        mPhi = -999;
+        mQ = 0;
     }
-    McTrack(float pt, float eta = -999, float phi = -999, int q = 0,
+    McTrack(double pt, double eta = -999, double phi = -999, int q = 0,
             int start_vertex = -1) {
-        _pt = pt;
-        _eta = eta;
-        _phi = phi;
-        _q = q;
-        _start_vertex = start_vertex;
+        mPt = pt;
+        mEta = eta;
+        mPhi = phi;
+        mQ = q;
+        mStartVertex = start_vertex;
     }
-    void addHit(KiTrack::IHit *hit) { hits.push_back(hit); }
 
-    void addFSIHit(KiTrack::IHit *hit) { fsi_hits.push_back(hit); }
+    void addHit(KiTrack::IHit *hit) { mHits.push_back(hit); }
+    // void addFstHit(KiTrack::IHit *hit) { mFstHits.push_back(hit); }
 
-    float _pt, _eta, _phi;
-    int _tid, _q, _start_vertex;
+    double mPt, mEta, mPhi;
+    int mTid, mQ, mStartVertex;
 
-    std::vector<KiTrack::IHit *> hits;
-    std::vector<KiTrack::IHit *> fsi_hits;
+    std::vector<KiTrack::IHit *> mHits;
+    // std::vector<KiTrack::IHit *> mFstHits;
 };
 
+
+/*
+ * Note, this class does not follow STAR naming convention.
+ * Instead, keep the conventions of KiTrack
+ */
 class FwdHit : public KiTrack::IHit {
   public:
     FwdHit(unsigned int id, float x, float y, float z, int vid, int tid,
@@ -71,10 +80,11 @@ class FwdHit : public KiTrack::IHit {
         _covmat.ResizeTo( 3, 3 );
         _covmat = covmat;
 
-        int _map[] = {0, 0, 0, 0, 0, 1, 2, 0, 0, 3, 4, 5, 6}; // ftsref6a
+        // these are the sector ids mapped to layers
+        int map[] = {0, 0, 0, 0, 0, 1, 2, 0, 0, 3, 4, 5, 6}; // ftsref6a
 
         if (vid > 0)
-            _sector = _map[vid];
+            _sector = map[vid];
         else {
             _sector = abs(vid); // set directly if you want
             // now set vid back so we retain info on the tru origin of the hit
@@ -84,11 +94,11 @@ class FwdHit : public KiTrack::IHit {
     };
 
     const KiTrack::ISectorSystem *getSectorSystem() const {
-        return gFwdSystem;
-    } // need to implement
+        return FwdSystem::sInstance;
+    }
 
     int _tid; // aka ID truth
-    int _vid;
+    int _vid; // volume id
     unsigned int _id; // just a unique id for each hit in this event.
     std::shared_ptr<McTrack> _mcTrack;
     TMatrixDSym _covmat;
@@ -101,7 +111,7 @@ using Seed_t = std::vector<KiTrack::IHit *>;
 class FwdConnector : public KiTrack::ISectorConnector {
   public:
     FwdConnector(unsigned int distance)
-        : _system(*gFwdSystem), _distance(distance) {}
+        : _distance(distance) {}
     ~FwdConnector(){/**/};
 
     // Return the possible sectors (layers) given current
@@ -126,17 +136,15 @@ class FwdConnector : public KiTrack::ISectorConnector {
 
   private:
   protected:
-    const FwdSystem _system; // numbering system
+    // const FwdSystem _system; // numbering system
     unsigned int _distance;  // number of layers forward to search
 };                           // FwdConnector
 
-class SeedQual {
-  public:
-    inline double operator()(Seed_t s) { return double(s.size()) / 7.0; }
+struct SeedQual {
+    inline double operator()(Seed_t s) { return double(s.size()) / FwdSystem::sNFttLayers ; } // seeds only use the 4 hits from Ftt
 };
 
-class SeedCompare {
-  public:
+struct SeedCompare {
     inline bool operator()(Seed_t trackA, Seed_t trackB) {
         std::map<unsigned int, unsigned int> hit_counts;
         // we are assuming that the same hit can never be used twice on a single

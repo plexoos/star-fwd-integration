@@ -22,11 +22,13 @@ void fast_track(   int n = 100,
     // StarMagField::setConstBz(true);
 
     gSystem->Load("libMathMore.so");
+    gSystem->Load("libXMLIO.so"); // needed by FwdTrackerConfig
+    gSystem->Load("libStarGeneratorUtil.so"); // needed for StarRandom
     gSystem->Load("libStFstSimMaker.so");
     gSystem->Load("libStFttSimMaker.so");
 
-    gSystem->Load("libgenfit2.so");
-    gSystem->Load("libKiTrack.so");
+    gSystem->Load("libgenfit2.so"); // needed for GenFit
+    gSystem->Load("libKiTrack.so"); // needed for KiTrack
     gSystem->Load("libStEventUtilities.so");
     gSystem->Load("libStFwdTrackMaker.so");
 
@@ -51,7 +53,7 @@ void fast_track(   int n = 100,
     StFwdTrackMaker *gmk = new StFwdTrackMaker();
     // config file set here overides chain opt
     gmk->SetConfigFile( configFile );
-    gmk->GenerateTree( false );
+    gmk->SetGenerateTree( false );
     // chain->AddAfter( "fsiSim", gmk );
     chain->AddMaker(gmk);
 
